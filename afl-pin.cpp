@@ -97,7 +97,6 @@ static VOID Trace_alt(TRACE trace, VOID *v) {
             continue;
         }
 
-
     BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)bbreport, IARG_FAST_ANALYSIS_CALL,
                    IARG_ADDRINT, BBL_Address(bbl), IARG_END);
   }
@@ -159,6 +158,7 @@ VOID Image(IMG img, VOID * v) {
       if (entrypoint == RTN_Invalid()) {
         entrypoint = RTN_FindByAddress(strtoul(KnobEntrypoint.Value().c_str(), NULL, 16));
         if (entrypoint == RTN_Invalid()) {
+	  fprintf(stderr,"Entry point invalid, falling back to __libc_start_main()\n");
           entrypoint = RTN_FindByName(img, "__libc_start_main");
           if (entrypoint == RTN_Invalid()) {
             fprintf(stderr, "Error: could not find entrypoint %s\n", KnobEntrypoint.Value().c_str());
@@ -185,7 +185,9 @@ VOID Image(IMG img, VOID * v) {
         RTN_Open(exitpoint);
         RTN_InsertCall(exitpoint, IPOINT_BEFORE, (AFUNPTR)exitFunction, IARG_CONTEXT, IARG_THREAD_ID, IARG_END);
         RTN_Close(exitpoint);
-      }
+      }else{
+	fprintf(stderr,"Exit point invalid!\n");
+	}
     }
   }
   if (entrypoint != RTN_Invalid() && IMG_Name(img).find("forkserver.so") != string::npos) {
