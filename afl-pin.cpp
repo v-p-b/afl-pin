@@ -37,6 +37,10 @@ static bool forkserver_installed = false;
 static uint8_t *trace_bits = NULL;
 #endif
 
+static uintptr_t blacklist[] = {
+	#include "blacklist.h"
+};
+
 /* ===================================================================== */
 /* Usage                                                                 */
 /* ===================================================================== */
@@ -52,6 +56,19 @@ INT32 Usage() {
   cout << " -exitpoint dst   specify a location where the program will exit" << endl;
   return -1;
 }
+
+static int compare_block_address(const void *a, const void *b)
+{
+    uintptr_t x =  (uintptr_t  ) a;
+    uintptr_t y = *(uintptr_t *) b;
+
+    if (x > y) return +1;
+    if (x < y) return -1;
+
+    return 0;
+}
+
+
 
 static VOID PIN_FAST_ANALYSIS_CALL bbreport(ADDRINT addr) {
   if (doit == 0)
@@ -70,9 +87,21 @@ static VOID Trace_alt(TRACE trace, VOID *v) {
   if (exe_start != 0 && (BBL_Address(bbl) > exe_end || BBL_Address(bbl) < exe_start))
     return;
   for ( ; BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
+
+    // Check if this block is in our blacklist...
+        if (bsearch((const void *)(BBL_Address(bbl)),
+                    blacklist,
+                    sizeof blacklist / sizeof blacklist[0],
+                    sizeof blacklist[0],
+                    compare_block_address)) {
+            continue;
+        }
+
+
     BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)bbreport, IARG_FAST_ANALYSIS_CALL,
                    IARG_ADDRINT, BBL_Address(bbl), IARG_END);
   }
+
 }
 
 static VOID Trace(TRACE trace, VOID *v) {
@@ -80,6 +109,16 @@ static VOID Trace(TRACE trace, VOID *v) {
   if (exe_start != 0 && (BBL_Address(bbl) > exe_end || BBL_Address(bbl) < exe_start))
     return;
   for ( ; BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
+    // Check if this block is in our blacklist...
+        if (bsearch((const void *)(BBL_Address(bbl)),
+                    blacklist,
+                    sizeof blacklist / sizeof blacklist[0],
+                    sizeof blacklist[0],
+                    compare_block_address)) {
+            continue;
+        }
+
+
     INS ins = BBL_InsTail(bbl);
 #ifdef DEBUG
     cerr << "DEBUG: INS@BB at 0x" << BBL_Address(bbl) << " " << INS_Disassemble(ins) << " => isfallthrough:" << INS_HasFallThrough(ins) << " condbranch:" << (INS_Category(ins) == XED_CATEGORY_COND_BR) << " indirect:" << INS_IsIndirectBranchOrCall(ins) << " isret:" << INS_IsRet(ins) << endl;
